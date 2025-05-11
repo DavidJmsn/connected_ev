@@ -19,6 +19,7 @@ library(dplyr)
 library(plotly)
 library(DT)
 library(lubridate)
+library(tibble)
 
 ## VARIABLES ---------------------------------------------------------------
 
@@ -394,10 +395,10 @@ server <- function(input, output, session) {
     game_time_df() |>
       group_by(as.factor(interaction(game_id, team))) |>
       plot_ly() |>
-      add_trace(x = ~time_to_gametime, y = ~kelly_criterion, split = ~team,
-                type = "scatter", mode = "lines+markers", colors = ~color_hex,
-                color = ~color_hex,
-                # marker = list(color = ~color_hex, colors = ~color_hex),
+      add_trace(x = ~time_to_gametime, y = ~kelly_criterion, 
+                type = "scatter", mode = "lines+markers",
+                color = ~team,  # Use team as the grouping variable
+                colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
                 line = list(shape = 'hv', width = 3),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
@@ -408,10 +409,10 @@ server <- function(input, output, session) {
                                     '<b>HRS TO PD: </b>', round(-1*time_to_gametime, 0)),
                 textposition = 'outside', opacity = 0.75, name = ~paste(team, "kelly_criterion"), 
                 visible = TRUE) |>
-      add_trace(x = ~time_to_gametime, y = ~expected_value, split = ~team,
-                type = "scatter", mode = "lines+markers", colors = ~color_hex,
-                color = ~color_hex,
-                # marker = list(color = ~color_hex, colors = ~color_hex),
+      add_trace(x = ~time_to_gametime, y = ~expected_value,
+                type = "scatter", mode = "lines+markers",
+                color = ~team,  # Use team as the grouping variable
+                colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
                 line = list(shape = 'hv', width = 3),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
@@ -422,10 +423,10 @@ server <- function(input, output, session) {
                                     '<b>HRS TO PD: </b>', round(-1*time_to_gametime, 0)),
                 textposition = 'outside', opacity = 0.75, yaxis = "y3", name = ~paste(team, "EV"), 
                 visible = TRUE) |>
-      add_trace(x = ~time_to_gametime, y = ~price, split = ~team,
-                type = "scatter", mode = "lines+markers", colors = ~color_hex,
-                color = ~color_hex,
-                # marker = list(color = ~color_hex, colors = ~color_hex),
+      add_trace(x = ~time_to_gametime, y = ~price, 
+                type = "scatter", mode = "lines+markers",
+                color = ~team,  # Use team as the grouping variable
+                colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
                 line = list(shape = 'hv', width = 3),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
@@ -434,10 +435,10 @@ server <- function(input, output, session) {
                                     '<b>HRS TO PD: </b>', round(-1*time_to_gametime, 0)),
                 textposition = 'outside', opacity = 0.75, yaxis = "y2", name = ~paste(team, "Line"),
                 visible = FALSE) |>
-      add_trace(x = ~time_to_gametime, y = ~win_percent, split = ~team,
-                type = "scatter", mode = "lines+markers", colors = ~color_hex,
-                color = ~color_hex,
-                # marker = list(color = ~color_hex, colors = ~color_hex),
+      add_trace(x = ~time_to_gametime, y = ~win_percent,
+                type = "scatter", mode = "lines+markers",
+                color = ~team,  # Use team as the grouping variable
+                colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
                 line = list(shape = 'hv', width = 3),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
