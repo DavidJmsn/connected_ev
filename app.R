@@ -137,7 +137,7 @@ bigrquery::bq_auth(token = token)
 tryCatch({
   # Query the table data from BigQuery with proper backticks for escaping identifiers
   colors_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "team_colors")
-  team_colors <- bq_project_query(project_id, colors_query) %>% bq_table_download()
+  team_colors <- bq_project_query(project_id, colors_query) %>% bq_table_download() %>% arrange(team, priority)
   
   completed_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "completed_games")
   completed_games_db <- bq_project_query(project_id, completed_query) %>% bq_table_download()
