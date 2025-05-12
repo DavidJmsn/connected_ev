@@ -391,8 +391,8 @@ server <- function(input, output, session) {
           '<div style="display: flex; align-items: center; justify-content: space-between;">',
           '<div style="text-align: right; width: 45%;">',
           '<strong>', first(team), '</strong><br>',
-          'Line: $', round(first(price), 2), '<br>',
-          'KC: ', round(first(kelly_criterion) * 100, 1), '%<br>',
+          'Line: ', round(first(price), 2), '<br>',
+          'KC: ', round(first(kelly_criterion) * 100, 2), '<br>',
           'Goalie: ', first(goalie),
           '</div>',
           '<div style="text-align: center; width: 10%;">',
@@ -400,8 +400,8 @@ server <- function(input, output, session) {
           '</div>',
           '<div style="text-align: left; width: 45%;">',
           '<strong>', last(team), '</strong><br>',
-          'Line: $', round(last(price), 2), '<br>',
-          'KC: ', round(last(kelly_criterion) * 100, 1), '%<br>',
+          'Line: ', round(last(price), 2), '<br>',
+          'KC: ', round(last(kelly_criterion) * 100, 2), '<br>',
           'Goalie: ', last(goalie),
           '</div>',
           '</div>'
@@ -410,7 +410,8 @@ server <- function(input, output, session) {
       )
     
     datatable(
-      games_compact[, c("game", "display", "date", "game_time")],
+      # games_compact[, c("game", "display", "date", "game_time")],
+      games_compact[, c("game", "display")],
       rownames = FALSE,
       selection = "single",
       escape = FALSE,  # Allow HTML rendering
@@ -418,15 +419,15 @@ server <- function(input, output, session) {
         pageLength = 30,
         dom = "t",
         columnDefs = list(
-          list(visible = FALSE, targets = 0),  # Hide the game column
-          list(className = 'dt-center', targets = c(2, 3))  # Center date and time
+          list(visible = FALSE, targets = 0)  # Hide the game column
+          # list(className = 'dt-center', targets = c(2, 3))  # Center date and time
         )
       ),
       colnames = c(
         "Game" = "game",
-        "Teams" = "display",
-        "Date" = "date",
-        "Time" = "game_time"
+        "Teams" = "display"
+        # "Date" = "date",
+        # "Time" = "game_time"
       )
     )
     
