@@ -155,7 +155,8 @@ tryCatch({
 
 upcoming_games_db <- merge.data.frame(x = upcoming_games_db, 
                                       y = slice_head(filter(team_colors, color_hex != "#000000"), n = 1, by ="team"),
-                                      by = "team")
+                                      by = "team") %>%
+  arrange(game_id, current_time_odds, home_or_away)
 
 # UI ----------------------------------------------------------------------
 
@@ -369,14 +370,66 @@ server <- function(input, output, session) {
   })
   
   output$upcoming_games_table <- renderDT({
-    datatable(upcoming_df()[, c("game", "team", "price", "kelly_criterion", "goalie", "date","game_time"
-                              # "win_probability","expected_value",  "date",
-                              # "game_time", "book", "game"
-    )],
-    rownames = FALSE, selection = "single",
-    options = list(pageLength = 30,
-                   dom = "t")
+    # datatable(upcoming_df()[, c("game", "team", "price", "kelly_criterion", "goalie", "date","game_time"
+    #                           # "win_probability","expected_value",  "date",
+    #                           # "game_time", "book", "game"
+    # )],
+    # rownames = FALSE, selection = "single",
+    # options = list(pageLength = 30,
+    #                dom = "t")
+    # )
+    
+    games_data <- upcoming_df() %>%
+      slice_max(current_time_odds, n = 1, by = team) %>%
+      arrange(game_time, home_or_away)
+    
+    # Create a more compact display
+    games_compact <- games_data %>%
+      group_by(game, date, game_time) %>%
+      summarise(
+        display = paste0(
+          '<div style="display: flex; align-items: center; justify-content: space-between;">',
+          '<div style="text-align: right; width: 45%;">',
+          '<strong>', first(team), '</strong><br>',
+          'Line: $', round(first(price), 2), '<br>',
+          'KC: ', round(first(kelly_criterion) * 100, 1), '%<br>',
+          'Goalie: ', first(goalie),
+          '</div>',
+          '<div style="text-align: center; width: 10%;">',
+          '<strong>VS</strong>',
+          '</div>',
+          '<div style="text-align: left; width: 45%;">',
+          '<strong>', last(team), '</strong><br>',
+          'Line: $', round(last(price), 2), '<br>',
+          'KC: ', round(last(kelly_criterion) * 100, 1), '%<br>',
+          'Goalie: ', last(goalie),
+          '</div>',
+          '</div>'
+        ),
+        .groups = "drop"
+      )
+    
+    datatable(
+      games_compact[, c("game", "display", "date", "game_time")],
+      rownames = FALSE,
+      selection = "single",
+      escape = FALSE,  # Allow HTML rendering
+      options = list(
+        pageLength = 30,
+        dom = "t",
+        columnDefs = list(
+          list(visible = FALSE, targets = 0),  # Hide the game column
+          list(className = 'dt-center', targets = c(2, 3))  # Center date and time
+        )
+      ),
+      colnames = c(
+        "Game" = "game",
+        "Teams" = "display",
+        "Date" = "date",
+        "Time" = "game_time"
+      )
     )
+    
   })
   
   selected_game <- reactive({
