@@ -27,6 +27,7 @@ library(base64enc)
 ## VARIABLES ---------------------------------------------------------------
 
 # Any hardcoded variables, options etc...
+platform <- Sys.getenv("platform")
 # Authentication setup
 project_id <- Sys.getenv("project_id")
 ds <- Sys.getenv("dataset")
@@ -333,44 +334,53 @@ format_game_time <- function(game_time, date = NULL) {
 
 # EXTRACT DATA ------------------------------------------------------------
 
-bigrquery::bq_deauth()
-
-service_json <- Sys.getenv("service_account")
-
-token <- gargle::credentials_service_account(
-  path = service_json,
-  scopes = c(
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/bigquery"
+if(platform == "posit_connect_cloud"){
+  bigrquery::bq_deauth()
+  
+  service_json <- Sys.getenv("service_account")
+  
+  token <- gargle::credentials_service_account(
+    path = service_json,
+    scopes = c(
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/bigquery"
+    )
   )
-)
-
-bigrquery::bq_auth(token = token)
-
-# # Create connection
-# bq_conn <- dbConnect(
-#   bigrquery::bigquery(),
-#   project = project_id,
-#   dataset = ds
-# )
-
-tryCatch({
-  # Query the table data from BigQuery with proper backticks for escaping identifiers
-  colors_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "team_colors")
-  team_colors <- bq_project_query(project_id, colors_query) %>% bq_table_download() %>% arrange(team, priority)
   
-  completed_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "completed_games")
-  completed_games_db <- bq_project_query(project_id, completed_query) %>% bq_table_download()
+  bigrquery::bq_auth(token = token)
   
-  upcoming_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "upcoming_games")
-  upcoming_games_db <- bq_project_query(project_id, upcoming_query) %>% bq_table_download()
+  # # Create connection
+  # bq_conn <- dbConnect(
+  #   bigrquery::bigquery(),
+  #   project = project_id,
+  #   dataset = ds
+  # )
   
-  # Disconnect
-  # dbDisconnect(conn = bq_conn)
-}, error = function(e){
-  message("Error querying data: ", e)
-  # dbDisconnect(conn = bq_conn)
-}) 
+  tryCatch({
+    # Query the table data from BigQuery with proper backticks for escaping identifiers
+    colors_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "team_colors")
+    team_colors <- bq_project_query(project_id, colors_query) %>% bq_table_download() %>% arrange(team, priority)
+    
+    completed_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "completed_games")
+    completed_games_db <- bq_project_query(project_id, completed_query) %>% bq_table_download()
+    
+    upcoming_query <- sprintf("SELECT * FROM `%s.%s.%s`", project_id, ds, "upcoming_games")
+    upcoming_games_db <- bq_project_query(project_id, upcoming_query) %>% bq_table_download()
+    
+    # Disconnect
+    # dbDisconnect(conn = bq_conn)
+  }, error = function(e){
+    message("Error querying data: ", e)
+    # dbDisconnect(conn = bq_conn)
+  })
+} else if(platform == "local"){
+  team_colors <- readRDS("team_colors.rds")
+  completed_games_db <- readRDS("completed_games.rds")
+  upcoming_games_db <- readRDS("upcoming_games.rds")
+} else {
+  message("\n\n
+          !!! ### Set platform environent variable to continue ### !!! \n\n")
+}
 
 upcoming_games_db <- merge.data.frame(x = upcoming_games_db, 
                                       y = slice_head(filter(team_colors, color_hex != "#000000"), n = 1, by ="team"),
@@ -619,7 +629,7 @@ server <- function(input, output, session) {
       summarise(
         display = paste0(
           '<div style="display: flex; align-items: center; justify-content: center;">',
-          '<div style="text-align: center; width: 160px;">',
+          '<div style="text-align: center; width: 155px;">',
           create_logo_img_tag(first(team), nhl_logos, "default", 40),
           '<br><strong>', first(team), '</strong><br>',
           'Line: ', round(first(price), 2), '<br>',
@@ -627,7 +637,7 @@ server <- function(input, output, session) {
           'Goalie: ', first(goalie),
           '</div>',
           '<div style="text-align: center; width: 20px;"><strong>VS</strong></div>',
-          '<div style="text-align: center; width: 160px;">',
+          '<div style="text-align: center; width: 155px;">',
           create_logo_img_tag(last(team), nhl_logos, "default", 40),
           '<br><strong>', last(team), '</strong><br>',
           'Line: ', round(last(price), 2), '<br>',
