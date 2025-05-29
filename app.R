@@ -619,7 +619,7 @@ server <- function(input, output, session) {
       summarise(
         display = paste0(
           '<div style="display: flex; align-items: center; justify-content: center;">',
-          '<div style="text-align: center; width: 150px;">',
+          '<div style="text-align: center; width: 180px;">',
           create_logo_img_tag(first(team), nhl_logos, "default", 40),
           '<br><strong>', first(team), '</strong><br>',
           'Line: ', round(first(price), 2), '<br>',
@@ -627,7 +627,7 @@ server <- function(input, output, session) {
           'Goalie: ', first(goalie),
           '</div>',
           '<div style="text-align: center; width: 20px;"><strong>VS</strong></div>',
-          '<div style="text-align: center; width: 150px;">',
+          '<div style="text-align: center; width: 180px;">',
           create_logo_img_tag(last(team), nhl_logos, "default", 40),
           '<br><strong>', last(team), '</strong><br>',
           'Line: ', round(last(price), 2), '<br>',
