@@ -22,6 +22,7 @@ library(lubridate)
 library(tibble)
 library(ggimage)
 library(png)
+library(base64enc)
 
 ## VARIABLES ---------------------------------------------------------------
 
@@ -263,66 +264,42 @@ cleanup_temp_logos <- function() {
 }
 
 
-# plot_ev <- function(df = games_df,
-#                     line_col = "price",
-#                     win_prob_col = "win_percent",
-#                     winner_col = "winner",
-#                     title = 'Odds vs Win Probability'){
-#   ylims = c(min(df[[line_col]]-0.25),
-#             max(df[[line_col]]+0.25))
-#   xlims = c(min(df[[win_prob_col]]-0.05),
-#             max(df[[win_prob_col]]+0.05))
-#   
-#   z <- data.table(x=c(0,1.05))
-#   p <- ggplot(data = z, mapping = aes(x=x)) +
-#     stat_function(fun=function(x) get_line(EV = 0, winProb = x)) +
-#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
-#                   geom = 'ribbon',
-#                   mapping = aes(ymin=after_stat((get_line(EV = -5, winProb = x))),
-#                                 ymax=after_stat((get_line(EV = 0, winProb = x)))),
-#                   fill = 'red',
-#                   alpha = 0.3) +
-#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
-#                   geom = 'ribbon',
-#                   mapping = aes(ymin=after_stat((get_line(EV = 0, winProb = x))),
-#                                 ymax=after_stat((get_line(EV = 0.05, winProb = x)))),
-#                   fill = 'orange',
-#                   alpha = 0.2) +
-#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
-#                   geom = 'ribbon',
-#                   mapping = aes(ymin=after_stat((get_line(EV = 0.05, winProb = x))),
-#                                 ymax=after_stat((get_line(EV = 0.10, winProb = x)))),
-#                   fill = 'yellow',
-#                   alpha = 0.2) +
-#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
-#                   geom = 'ribbon',
-#                   mapping = aes(ymin=after_stat((get_line(EV = 0.10, winProb = x))),
-#                                 ymax=after_stat((get_line(EV = 100, winProb = x)))),
-#                   fill = 'green',
-#                   alpha = 0.2) +
-#     stat_function(fun=function(x) get_line(EV = -5, winProb = x),
-#                   geom = 'area',
-#                   fill = 'red',
-#                   alpha = 0.4)
-#   
-#   p <- p + geom_point(data = df,
-#                       mapping = aes(x = .data[[win_prob_col]],
-#                                     y = .data[[line_col]],
-#                                     color = .data[[winner_col]]
-#                                     # shape = Team
-#                       )) +
-#     labs(x = 'Win Probability', y = 'Line',
-#          title = title
-#     ) +
-#     coord_cartesian(xlim = xlims,
-#                     ylim = ylims) +
-#     scale_color_discrete(name = winner_col) +
-#     scale_x_continuous(breaks = seq(0, 1, by = 0.10)) +
-#     scale_y_continuous(breaks = seq(floor(min(df[[line_col]])), ceiling(max(df[[line_col]])), by = 0.5)) +
-#     theme(plot.title = element_text(hjust = 0.5))
-#   
-#   return(ggplotly(p))
-# }
+# CONVERT RDS LOGO INTO HTML IMG TAG --------------------------------------
+# Function to convert logo from RDS to base64 HTML img tag
+create_logo_img_tag <- function(team_name, nhl_logos, logo_type = "default", height = 30) {
+  # Convert team name to key format
+  team_key <- gsub(" ", "_", team_name)
+  
+  # Check if team exists in logos
+  if (!team_key %in% names(nhl_logos$logos)) {
+    return(team_name)  # Return text if no logo found
+  }
+  
+  # Get logo data
+  logo_data <- nhl_logos$logos[[team_key]][[logo_type]]
+  
+  if (is.null(logo_data) || !logo_data$success) {
+    return(team_name)  # Return text if logo not available
+  }
+  
+  # Create temporary file to write PNG
+  temp_file <- tempfile(fileext = ".png")
+  writePNG(logo_data$image, temp_file)
+  
+  # Convert to base64
+  base64_string <- base64encode(temp_file)
+  
+  # Clean up temp file
+  unlink(temp_file)
+  
+  # Create HTML img tag
+  img_tag <- sprintf(
+    '<img src="data:image/png;base64,%s" height="%d" alt="%s" title="%s" style="vertical-align: middle;">',
+    base64_string, height, team_name, team_name
+  )
+  
+  return(img_tag)
+}
 
 # EXTRACT DATA ------------------------------------------------------------
 
@@ -606,36 +583,43 @@ server <- function(input, output, session) {
     games_data <- upcoming_df() %>%
       slice_max(current_time_odds, n = 1, by = team) %>%
       arrange(game_time, home_or_away)
-    
-    # Create a more compact display
+
+    # Create a more compact display with logos
     games_compact <- games_data %>%
       group_by(game, date, game_time) %>%
       summarise(
         display = paste0(
           '<div style="display: flex; align-items: center; justify-content: space-between;">',
-          '<div style="text-align: right; width: 45%;">',
+          '<div style="text-align: center; width: 500px;">',
+          # Team 1 logo
+          '<div style="margin-bottom: 5px;">',
+          create_logo_img_tag(first(team), nhl_logos, "default", 40),
+          '</div>',
           '<strong>', first(team), '</strong><br>',
           'Line: ', round(first(price), 2), '<br>',
-          'KC: ', round(first(kelly_criterion) * 100, 2), '<br>',
+          'KC: ', round(first(kelly_criterion) * 100, 2), '%<br>',
           'Goalie: ', first(goalie),
           '</div>',
-          '<div style="text-align: center; width: 10%;">',
+          '<div style="text-align: center; width: 200px;">',
           '<strong>VS</strong>', '<br>',
-          date[1], 
+          date[1],
           '</div>',
-          '<div style="text-align: left; width: 45%;">',
+          '<div style="text-align: center; width: 500px;">',
+          # Team 2 logo
+          '<div style="margin-bottom: 5px;">',
+          create_logo_img_tag(last(team), nhl_logos, "default", 40),
+          '</div>',
           '<strong>', last(team), '</strong><br>',
           'Line: ', round(last(price), 2), '<br>',
-          'KC: ', round(last(kelly_criterion) * 100, 2), '<br>',
+          'KC: ', round(last(kelly_criterion) * 100, 2), '%<br>',
           'Goalie: ', last(goalie),
           '</div>',
           '</div>'
         ),
         .groups = "drop"
       )
-    
+
     datatable(
-      # games_compact[, c("game", "display", "date", "game_time")],
       games_compact[, c("game", "display")],
       rownames = FALSE,
       selection = "single",
@@ -644,19 +628,63 @@ server <- function(input, output, session) {
         pageLength = 30,
         dom = "t",
         columnDefs = list(
-          list(visible = FALSE, targets = 0)  # Hide the game column
-          # list(className = 'dt-center', targets = c(2, 3))  # Center date and time
+          list(visible = FALSE, targets = 0),  # Hide the game column
+          list(className = 'dt-center', targets = c("_all"))  # Center date and time
         )
       ),
       colnames = c(
         "Game" = "game",
-        "Teams" = "display"
-        # "Date" = "date",
-        # "Time" = "game_time"
+        "Matchup" = "display"
       )
     )
-    
   })
+    
+  #   games_data <- upcoming_df() %>%
+  #     slice_max(current_time_odds, n = 1, by = team) %>%
+  #     arrange(game_time, home_or_away)
+  #   
+  #   # Create display with logos only
+  #   games_compact <- games_data %>%
+  #     group_by(game, date, game_time) %>%
+  #     summarise(
+  #       display = paste0(
+  #         '<div style="display: flex; align-items: center; justify-content: space-around; padding: 10px;">',
+  #         # Team 1 section
+  #         '<div style="text-align: center; width: 40%;">',
+  #         create_logo_img_tag(first(team), nhl_logos, "default", 50), '<br>',
+  #         '<small>Line: ', round(first(price), 2), ' | KC: ', round(first(kelly_criterion) * 100, 1), '%</small><br>',
+  #         '<small>', first(goalie), '</small>',
+  #         '</div>',
+  #         # VS section
+  #         '<div style="text-align: center; width: 20%;">',
+  #         '<strong style="font-size: 24px;">VS</strong><br>',
+  #         '<small>', format(as.POSIXct(first(game_time)), "%I:%M %p"), '</small>',
+  #         '</div>',
+  #         # Team 2 section
+  #         '<div style="text-align: center; width: 40%;">',
+  #         create_logo_img_tag(last(team), nhl_logos, "default", 50), '<br>',
+  #         '<small>Line: ', round(last(price), 2), ' | KC: ', round(last(kelly_criterion) * 100, 1), '%</small><br>',
+  #         '<small>', last(goalie), '</small>',
+  #         '</div>',
+  #         '</div>'
+  #       ),
+  #       .groups = "drop"
+  #     )
+  #   
+  #   datatable(
+  #     games_compact[, c("display")],
+  #     rownames = FALSE,
+  #     selection = "single",
+  #     escape = FALSE,
+  #     options = list(
+  #       pageLength = 30,
+  #       dom = "t",
+  #       ordering = FALSE
+  #     ),
+  #     colnames = c("Today's Games" = "display")
+  #   )
+  # })
+  
   
   selected_game <- reactive({
     print(data.frame(unique(upcoming_df()$game))[input$narrow_dt_row_last_clicked,])
@@ -678,9 +706,8 @@ server <- function(input, output, session) {
                 type = "scatter", mode = "lines+markers",
                 color = ~team,  # Use team as the grouping variable
                 colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
+                marker = list(symbol = 'circle', size = 10),
                 line = list(shape = 'hv', width = 3),
-                symbol = ~team,
-                symbols = c("x"),
                 # symbols = c("circle", "x"),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
@@ -695,7 +722,8 @@ server <- function(input, output, session) {
                 type = "scatter", mode = "lines+markers",
                 color = ~team,  # Use team as the grouping variable
                 colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
-                line = list(shape = 'hv', width = 3),
+                marker = list(symbol = 'x', size = 10),
+                line = list(shape = 'hv', width = 3, dash = "dash"),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
                 hovertext = ~paste0('<b>Team: </b>', team,"<br>",
@@ -709,7 +737,8 @@ server <- function(input, output, session) {
                 type = "scatter", mode = "lines+markers",
                 color = ~team,  # Use team as the grouping variable
                 colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
-                line = list(shape = 'hv', width = 3),
+                marker = list(symbol = "diamond", size = 10),
+                line = list(shape = 'hv', width = 3, dash = "dot"),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
                 hovertext = ~paste0('<b>Team: </b>', team,"<br>",
@@ -721,7 +750,8 @@ server <- function(input, output, session) {
                 type = "scatter", mode = "lines+markers",
                 color = ~team,  # Use team as the grouping variable
                 colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
-                line = list(shape = 'hv', width = 3),
+                marker = list(symbol = "circle-open", size = 10),
+                line = list(shape = 'hv', width = 3, dash = "dashdot"),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
                 hovertext = ~paste0('<b>Team: </b>', team,"<br>",
