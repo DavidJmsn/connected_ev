@@ -20,6 +20,7 @@ library(plotly)
 library(DT)
 library(lubridate)
 library(tibble)
+library(ggimage)
 
 ## VARIABLES ---------------------------------------------------------------
 
@@ -50,17 +51,95 @@ get_prob <- function(EV, line){
 }
 
 ## PLOT EV -----------------------------------------------------------------
-
+# Enhanced plot_ev function using preloaded logos from RDS
 plot_ev <- function(df = games_df,
                     line_col = "price",
                     win_prob_col = "win_percent",
                     winner_col = "winner",
-                    title = 'Odds vs Win Probability'){
+                    team_col = "team",  # Column containing team names
+                    title = 'Odds vs Win Probability',
+                    use_logos = FALSE,  # Toggle for using logos
+                    logo_dir = "01_data/team_color_codes/logos",  # Path to logos directory (for fallback)
+                    nhl_logos = NULL,  # Preloaded logos object (optional)
+                    logo_type = "default",  # Which logo variant to use
+                    logo_size = 0.1,  # Size of logos
+                    interactive = TRUE,  # Toggle for interactive plot
+                    temp_logo_dir = NULL  # Temporary directory for logo files
+){
+  
+  print(getwd())
+  
+  # Set axis limits
   ylims = c(min(df[[line_col]]-0.25),
             max(df[[line_col]]+0.25))
   xlims = c(min(df[[win_prob_col]]-0.05),
             max(df[[win_prob_col]]+0.05))
   
+  # Add logo paths if using logos
+  if (use_logos && !interactive) {
+    # Check if preloaded logos are provided
+    if (!is.null(nhl_logos)) {
+      # Use preloaded logos from RDS
+      message("Using preloaded logos from RDS file...")
+      
+      # Set up temporary directory for this session
+      if (is.null(temp_logo_dir)) {
+        temp_logo_dir <- file.path(tempdir(), "nhl_logos_temp", format(Sys.time(), "%Y%m%d_%H%M%S"))
+      }
+      if (!dir.exists(temp_logo_dir)) {
+        dir.create(temp_logo_dir, recursive = TRUE)
+      }
+      
+      # Create logo paths using preloaded data
+      df$team_key <- gsub(" ", "_", df[[team_col]])
+      df$logo_path <- NA
+      
+      # Process each unique team
+      unique_teams <- unique(df$team_key)
+      for (team in unique_teams) {
+        if (team %in% names(nhl_logos$logos)) {
+          logo_data <- nhl_logos$logos[[team]][[logo_type]]
+          
+          if (!is.null(logo_data) && logo_data$success) {
+            # Create temp file path
+            temp_file <- file.path(temp_logo_dir, paste0(team, "_", logo_type, ".png"))
+            
+            # Write PNG to temp file
+            writePNG(logo_data$image, temp_file)
+            
+            # Update all rows with this team
+            df$logo_path[df$team_key == team] <- temp_file
+          }
+        }
+      }
+      
+      # Check for missing logos
+      missing_logos <- df[[team_col]][is.na(df$logo_path)]
+      if (length(missing_logos) > 0) {
+        warning("Missing logos in RDS for teams: ", paste(unique(missing_logos), collapse = ", "))
+      }
+      
+    } else {
+      # Fallback to original file-based method
+      message("No preloaded logos provided, using files from disk...")
+      
+      # Simple conversion: just replace spaces with underscores
+      df$logo_filename <- paste0(gsub(" ", "_", df[[team_col]]), ".png")
+      df$logo_path <- file.path(logo_dir, df$logo_filename)
+      
+      # Check if logo files exist
+      missing_logos <- df[[team_col]][!file.exists(df$logo_path)]
+      if (length(missing_logos) > 0) {
+        warning("Missing logo files for teams: ", paste(unique(missing_logos), collapse = ", "))
+        
+        # Show which files it's looking for
+        missing_files <- unique(df$logo_filename[!file.exists(df$logo_path)])
+        message("Looking for files: ", paste(missing_files, collapse = ", "))
+      }
+    }
+  }
+  
+  # Create base plot with ribbons
   z <- data.table(x=c(0,1.05))
   p <- ggplot(data = z, mapping = aes(x=x)) +
     stat_function(fun=function(x) get_line(EV = 0, winProb = x)) +
@@ -93,24 +172,156 @@ plot_ev <- function(df = games_df,
                   fill = 'red',
                   alpha = 0.4)
   
-  p <- p + geom_point(data = df,
-                      mapping = aes(x = .data[[win_prob_col]],
-                                    y = .data[[line_col]],
-                                    color = .data[[winner_col]]
-                                    # shape = Team
-                      )) +
-    labs(x = 'Win Probability', y = 'Line',
-         title = title
-    ) +
+  # Add data points - either as logos or regular points
+  if (use_logos && !interactive) {
+    # Split data into teams with and without logos
+    df_with_logos <- df[!is.na(df$logo_path) & file.exists(df$logo_path), ]
+    df_without_logos <- df[is.na(df$logo_path) | !file.exists(df$logo_path), ]
+    
+    # Add logos for teams that have them
+    if (nrow(df_with_logos) > 0) {
+      p <- p + 
+        geom_image(data = df_with_logos,
+                   mapping = aes(x = .data[[win_prob_col]],
+                                 y = .data[[line_col]],
+                                 image = logo_path),
+                   size = logo_size)
+    }
+    
+    # Add points for teams without logos
+    if (nrow(df_without_logos) > 0) {
+      p <- p + 
+        geom_point(data = df_without_logos,
+                   mapping = aes(x = .data[[win_prob_col]],
+                                 y = .data[[line_col]],
+                                 color = .data[[winner_col]]),
+                   size = 3) +
+        geom_text(data = df_without_logos,
+                  mapping = aes(x = .data[[win_prob_col]],
+                                y = .data[[line_col]],
+                                label = .data[[team_col]]),
+                  vjust = -1,
+                  size = 2.5)
+    }
+  } else {
+    # Use regular points (for interactive or non-logo version)
+    p <- p + 
+      geom_point(data = df,
+                 mapping = aes(x = .data[[win_prob_col]],
+                               y = .data[[line_col]],
+                               color = .data[[winner_col]],
+                               # Add team info to hover text if interactive
+                               text = if(interactive) paste("Team:", .data[[team_col]],
+                                                            "<br>Win Prob:", round(.data[[win_prob_col]], 3),
+                                                            "<br>Line:", .data[[line_col]],
+                                                            "<br>Winner:", .data[[winner_col]]) 
+                               else NULL))
+  }
+  
+  # Complete the plot styling
+  p <- p +
+    labs(x = 'Win Probability', 
+         y = 'Line',
+         title = title) +
     coord_cartesian(xlim = xlims,
                     ylim = ylims) +
-    scale_color_discrete(name = winner_col) +
     scale_x_continuous(breaks = seq(0, 1, by = 0.10)) +
-    scale_y_continuous(breaks = seq(floor(min(df[[line_col]])), ceiling(max(df[[line_col]])), by = 0.5)) +
+    scale_y_continuous(breaks = seq(floor(min(df[[line_col]])), 
+                                    ceiling(max(df[[line_col]])), 
+                                    by = 0.5)) +
     theme(plot.title = element_text(hjust = 0.5))
   
-  return(ggplotly(p))
+  # Add legend only if not using logos
+  if (!use_logos || interactive) {
+    p <- p + scale_color_discrete(name = winner_col)
+  } else {
+    p <- p + theme(legend.position = "none")
+  }
+  
+  # Clean up temp directory if we created one (optional)
+  # Uncomment if you want automatic cleanup after each plot
+  # if (!is.null(nhl_logos) && exists("temp_logo_dir")) {
+  #   unlink(temp_logo_dir, recursive = TRUE)
+  # }
+  
+  # Return either interactive or static plot
+  if (interactive) {
+    return(ggplotly(p, tooltip = if(!use_logos) "text" else "all"))
+  } else {
+    return(p)
+  }
 }
+
+# Helper function to clean up all temporary logo directories
+cleanup_temp_logos <- function() {
+  temp_dirs <- list.dirs(file.path(tempdir(), "nhl_logos_temp"), full.names = TRUE, recursive = FALSE)
+  if (length(temp_dirs) > 0) {
+    unlink(temp_dirs, recursive = TRUE)
+    message("Cleaned up ", length(temp_dirs), " temporary logo directories")
+  }
+}
+
+
+# plot_ev <- function(df = games_df,
+#                     line_col = "price",
+#                     win_prob_col = "win_percent",
+#                     winner_col = "winner",
+#                     title = 'Odds vs Win Probability'){
+#   ylims = c(min(df[[line_col]]-0.25),
+#             max(df[[line_col]]+0.25))
+#   xlims = c(min(df[[win_prob_col]]-0.05),
+#             max(df[[win_prob_col]]+0.05))
+#   
+#   z <- data.table(x=c(0,1.05))
+#   p <- ggplot(data = z, mapping = aes(x=x)) +
+#     stat_function(fun=function(x) get_line(EV = 0, winProb = x)) +
+#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
+#                   geom = 'ribbon',
+#                   mapping = aes(ymin=after_stat((get_line(EV = -5, winProb = x))),
+#                                 ymax=after_stat((get_line(EV = 0, winProb = x)))),
+#                   fill = 'red',
+#                   alpha = 0.3) +
+#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
+#                   geom = 'ribbon',
+#                   mapping = aes(ymin=after_stat((get_line(EV = 0, winProb = x))),
+#                                 ymax=after_stat((get_line(EV = 0.05, winProb = x)))),
+#                   fill = 'orange',
+#                   alpha = 0.2) +
+#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
+#                   geom = 'ribbon',
+#                   mapping = aes(ymin=after_stat((get_line(EV = 0.05, winProb = x))),
+#                                 ymax=after_stat((get_line(EV = 0.10, winProb = x)))),
+#                   fill = 'yellow',
+#                   alpha = 0.2) +
+#     stat_function(fun=function(x) get_line(EV = 0, winProb = x),
+#                   geom = 'ribbon',
+#                   mapping = aes(ymin=after_stat((get_line(EV = 0.10, winProb = x))),
+#                                 ymax=after_stat((get_line(EV = 100, winProb = x)))),
+#                   fill = 'green',
+#                   alpha = 0.2) +
+#     stat_function(fun=function(x) get_line(EV = -5, winProb = x),
+#                   geom = 'area',
+#                   fill = 'red',
+#                   alpha = 0.4)
+#   
+#   p <- p + geom_point(data = df,
+#                       mapping = aes(x = .data[[win_prob_col]],
+#                                     y = .data[[line_col]],
+#                                     color = .data[[winner_col]]
+#                                     # shape = Team
+#                       )) +
+#     labs(x = 'Win Probability', y = 'Line',
+#          title = title
+#     ) +
+#     coord_cartesian(xlim = xlims,
+#                     ylim = ylims) +
+#     scale_color_discrete(name = winner_col) +
+#     scale_x_continuous(breaks = seq(0, 1, by = 0.10)) +
+#     scale_y_continuous(breaks = seq(floor(min(df[[line_col]])), ceiling(max(df[[line_col]])), by = 0.5)) +
+#     theme(plot.title = element_text(hjust = 0.5))
+#   
+#   return(ggplotly(p))
+# }
 
 # EXTRACT DATA ------------------------------------------------------------
 
@@ -157,6 +368,8 @@ upcoming_games_db <- merge.data.frame(x = upcoming_games_db,
                                       y = slice_head(filter(team_colors, color_hex != "#000000"), n = 1, by ="team"),
                                       by = "team") %>%
   arrange(game_id, current_time_odds, home_or_away)
+
+nhl_logos <- readRDS("nhl_logos_preloaded.rds")
 
 # UI ----------------------------------------------------------------------
 
@@ -206,7 +419,8 @@ ui <- page_navbar(
       ),
       nav_panel(
         "E.V. Scatterplot",
-        plotlyOutput("upcoming_ev_plot")
+        # plotlyOutput("upcoming_ev_plot")
+        plotOutput("upcoming_ev_plot")
       )
     )
   ),
@@ -295,8 +509,17 @@ server <- function(input, output, session) {
       slice_max(current_time_odds, n = 1, with_ties = FALSE, by = c("game_id", "team"))
   })
   
-  output$upcoming_ev_plot <- renderPlotly({
-    plot_ev(df = upcoming_value_df(), line_col = "price", win_prob_col = "win_percent", winner_col = "winner")
+  # output$upcoming_ev_plot <- renderPlotly({
+  output$upcoming_ev_plot <- renderPlot({
+    plot_ev(df = upcoming_value_df(), line_col = "price", win_prob_col = "win_percent", winner_col = "winner", 
+            team_col = "team",
+            use_logos = TRUE,  # Toggle for using logos
+            # logo_dir = "01_data/team_color_codes/logos",  # Path to logos directory (for fallback)
+            nhl_logos = nhl_logos,  # Preloaded logos object (optional)
+            logo_type = "default",  # Which logo variant to use
+            logo_size = 0.1,  # Size of logos
+            interactive = FALSE,  # Toggle for interactive plot
+            temp_logo_dir = NULL)  # Temporary directory for logo files
   })
   
   win_prob_bin_df <- reactive({
@@ -455,6 +678,9 @@ server <- function(input, output, session) {
                 color = ~team,  # Use team as the grouping variable
                 colors = game_time_df() %>% select(team, color_hex) %>% deframe(),  # Create a named vector of colors
                 line = list(shape = 'hv', width = 3),
+                symbol = ~team,
+                symbols = c("x"),
+                # symbols = c("circle", "x"),
                 # color = ~color_hex, colors = ~color_hex),
                 hoverinfo = "text",
                 hovertext = ~paste0('<b>Team: </b>', team,"<br>",
