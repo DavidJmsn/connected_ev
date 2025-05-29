@@ -301,6 +301,36 @@ create_logo_img_tag <- function(team_name, nhl_logos, logo_type = "default", hei
   return(img_tag)
 }
 
+
+# FORMAT GAME DATE AND TIME FOR DATATABLE ---------------------------------
+# Helper function to format game time
+format_game_time <- function(game_time, date = NULL) {
+  tryCatch({
+    # Check if it's just a time string (e.g., "20:00" or "8:00 PM")
+    if (grepl("^\\d{1,2}:\\d{2}(\\s*(AM|PM))?$", game_time)) {
+      if (!is.null(date)) {
+        # Combine date and time
+        datetime_str <- paste(date, game_time)
+        # Try different formats
+        datetime <- as.POSIXct(datetime_str, format = "%Y-%m-%d %H:%M")
+        if (is.na(datetime)) {
+          datetime <- as.POSIXct(datetime_str, format = "%Y-%m-%d %I:%M %p")
+        }
+        return(format(datetime, "%I:%M %p"))
+      } else {
+        # Just return the time as is
+        return(game_time)
+      }
+    } else {
+      # Assume it's already a full datetime
+      return(format(as.POSIXct(game_time), "%I:%M %p"))
+    }
+  }, error = function(e) {
+    # If all else fails, return the original string
+    return(game_time)
+  })
+}
+
 # EXTRACT DATA ------------------------------------------------------------
 
 bigrquery::bq_deauth()
@@ -579,112 +609,114 @@ server <- function(input, output, session) {
     # options = list(pageLength = 30,
     #                dom = "t")
     # )
-    
     games_data <- upcoming_df() %>%
       slice_max(current_time_odds, n = 1, by = team) %>%
-      arrange(game_time, home_or_away)
-
-    # Create a more compact display with logos
+      arrange(date, game_time, home_or_away)
+    
+    # Build the compact display exactly as before
     games_compact <- games_data %>%
       group_by(game, date, game_time) %>%
       summarise(
         display = paste0(
-          '<div style="display: flex; align-items: center; justify-content: space-between;">',
-          '<div style="text-align: center; width: 200px;">',
-          # Team 1 logo
-          '<div style="margin-bottom: 5px;">',
+          '<div style="display: flex; align-items: center; justify-content: center;">',
+          '<div style="text-align: center; width: 150px;">',
           create_logo_img_tag(first(team), nhl_logos, "default", 40),
-          '</div>',
-          '<strong>', first(team), '</strong><br>',
+          '<br><strong>', first(team), '</strong><br>',
           'Line: ', round(first(price), 2), '<br>',
           'KC: ', round(first(kelly_criterion) * 100, 2), '%<br>',
           'Goalie: ', first(goalie),
           '</div>',
-          '<div style="text-align: center; width: 20px;">',
-          '<strong>VS</strong>', '<br>',
-          date[1],
-          '</div>',
-          '<div style="text-align: center; width: 200px;">',
-          # Team 2 logo
-          '<div style="margin-bottom: 5px;">',
+          '<div style="text-align: center; width: 20px;"><strong>VS</strong></div>',
+          '<div style="text-align: center; width: 150px;">',
           create_logo_img_tag(last(team), nhl_logos, "default", 40),
-          '</div>',
-          '<strong>', last(team), '</strong><br>',
+          '<br><strong>', last(team), '</strong><br>',
           'Line: ', round(last(price), 2), '<br>',
           'KC: ', round(last(kelly_criterion) * 100, 2), '%<br>',
           'Goalie: ', last(goalie),
-          '</div>',
-          '</div>'
+          '</div></div>'
         ),
         .groups = "drop"
       )
-
+    
     datatable(
-      games_compact[, c("game", "display")],
+      # include 'date' as first column for grouping
+      games_compact[, c("date", "display")],
       rownames = FALSE,
-      selection = "single",
-      escape = FALSE,  # Allow HTML rendering
+      escape = FALSE,           
+      extensions = "RowGroup",  # load the grouping extension
       options = list(
         pageLength = 30,
         dom = "t",
+        rowGroup = list(dataSrc = 0),  # group by the first (0-indexed) column
         columnDefs = list(
-          list(visible = FALSE, targets = 0),  # Hide the game column
-          list(className = 'dt-center', targets = c("_all"))  # Center date and time
+          # hide the raw date column (we only want the header rows)
+          list(visible = FALSE, targets = 0),
+          # center the display column
+          list(className = 'dt-center', targets = "_all")
         )
       ),
-      colnames = c(
-        "Game" = "game",
-        "Matchup" = "display"
-      )
+      colnames = c("Date" = "date", "Matchup" = "display")
     )
   })
     
   #   games_data <- upcoming_df() %>%
   #     slice_max(current_time_odds, n = 1, by = team) %>%
   #     arrange(game_time, home_or_away)
-  #   
-  #   # Create display with logos only
+  # 
+  #   # Create a more compact display with logos
   #   games_compact <- games_data %>%
   #     group_by(game, date, game_time) %>%
   #     summarise(
   #       display = paste0(
-  #         '<div style="display: flex; align-items: center; justify-content: space-around; padding: 10px;">',
-  #         # Team 1 section
-  #         '<div style="text-align: center; width: 40%;">',
-  #         create_logo_img_tag(first(team), nhl_logos, "default", 50), '<br>',
-  #         '<small>Line: ', round(first(price), 2), ' | KC: ', round(first(kelly_criterion) * 100, 1), '%</small><br>',
-  #         '<small>', first(goalie), '</small>',
+  #         '<div style="display: flex; align-items: center; justify-content: center;">',
+  #         '<div style="text-align: center; width: 150px;">',
+  #         # Team 1 logo
+  #         '<div style="margin-bottom: 5px;">',
+  #         create_logo_img_tag(first(team), nhl_logos, "default", 40),
   #         '</div>',
-  #         # VS section
-  #         '<div style="text-align: center; width: 20%;">',
-  #         '<strong style="font-size: 24px;">VS</strong><br>',
-  #         '<small>', format(as.POSIXct(first(game_time)), "%I:%M %p"), '</small>',
+  #         '<strong>', first(team), '</strong><br>',
+  #         'Line: ', round(first(price), 2), '<br>',
+  #         'KC: ', round(first(kelly_criterion) * 100, 2), '%<br>',
+  #         'Goalie: ', first(goalie),
   #         '</div>',
-  #         # Team 2 section
-  #         '<div style="text-align: center; width: 40%;">',
-  #         create_logo_img_tag(last(team), nhl_logos, "default", 50), '<br>',
-  #         '<small>Line: ', round(last(price), 2), ' | KC: ', round(last(kelly_criterion) * 100, 1), '%</small><br>',
-  #         '<small>', last(goalie), '</small>',
+  #         '<div style="text-align: center; width: 20px;">',
+  #         '<strong>VS</strong>', '<br>',
+  #         # date[1],
+  #         '</div>',
+  #         '<div style="text-align: center; width: 150px;">',
+  #         # Team 2 logo
+  #         '<div style="margin-bottom: 5px;">',
+  #         create_logo_img_tag(last(team), nhl_logos, "default", 40),
+  #         '</div>',
+  #         '<strong>', last(team), '</strong><br>',
+  #         'Line: ', round(last(price), 2), '<br>',
+  #         'KC: ', round(last(kelly_criterion) * 100, 2), '%<br>',
+  #         'Goalie: ', last(goalie),
   #         '</div>',
   #         '</div>'
   #       ),
   #       .groups = "drop"
   #     )
-  #   
+  # 
   #   datatable(
-  #     games_compact[, c("display")],
+  #     games_compact[, c("game", "display")],
   #     rownames = FALSE,
   #     selection = "single",
-  #     escape = FALSE,
+  #     escape = FALSE,  # Allow HTML rendering
   #     options = list(
   #       pageLength = 30,
   #       dom = "t",
-  #       ordering = FALSE
+  #       columnDefs = list(
+  #         list(visible = FALSE, targets = 0),  # Hide the game column
+  #         list(className = 'dt-center', targets = c("_all"))  # Center date and time
+  #       )
   #     ),
-  #     colnames = c("Today's Games" = "display")
+  #     colnames = c(
+  #       "Game" = "game",
+  #       "Matchup" = "display"
+  #     )
   #   )
   # })
-  
   
   selected_game <- reactive({
     print(data.frame(unique(upcoming_df()$game))[input$narrow_dt_row_last_clicked,])
