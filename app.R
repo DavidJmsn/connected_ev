@@ -33,6 +33,9 @@ project_id <- Sys.getenv("project_id")
 ds <- Sys.getenv("dataset")
 dataset <- bq_dataset(project_id, ds)
 
+custom_red <- "#e74c3c"
+custom_green <- "#18bc9c"
+
 # FUNCTIONS ---------------------------------------------------------------
 
 ## NEGATE IN ---------------------------------------------------------------
@@ -212,13 +215,16 @@ plot_ev <- function(df = games_df,
       geom_point(data = df,
                  mapping = aes(x = .data[[win_prob_col]],
                                y = .data[[line_col]],
-                               color = .data[[winner_col]],
+                               color = as.factor(.data[[winner_col]]),
+                               shape = as.factor(.data[[winner_col]]),
                                # Add team info to hover text if interactive
                                text = if(interactive) paste("Team:", .data[[team_col]],
                                                             "<br>Win Prob:", round(.data[[win_prob_col]], 3),
                                                             "<br>Line:", .data[[line_col]],
                                                             "<br>Winner:", .data[[winner_col]]) 
-                               else NULL))
+                               else NULL)) +
+      scale_shape_manual(values = c("FALSE" = 4, "TRUE" = 16)) +  # 4 = "x", 16 = circle
+      scale_color_manual(values = c("FALSE" = custom_red, "TRUE" = custom_green)) 
   }
   
   # Complete the plot styling
@@ -236,7 +242,11 @@ plot_ev <- function(df = games_df,
   
   # Add legend only if not using logos
   if (!use_logos || interactive) {
-    p <- p + scale_color_discrete(name = winner_col)
+    # p <- p + scale_color_discrete(name = winner_col)
+    p <- ggplotly(p, tooltip = if(!use_logos) "text" else "all") |>
+      layout(
+        legend = list(x = 0, y = 1.1, orientation = 'h')
+      )
   } else {
     p <- p + theme(legend.position = "none")
   }
@@ -249,7 +259,8 @@ plot_ev <- function(df = games_df,
   
   # Return either interactive or static plot
   if (interactive) {
-    return(ggplotly(p, tooltip = if(!use_logos) "text" else "all"))
+    return(p)
+    # return(ggplotly(p, tooltip = if(!use_logos) "text" else "all"))
   } else {
     return(p)
   }
@@ -426,7 +437,7 @@ ui <- page_navbar(
         "Line Movement",
         layout_column_wrap(
           width = NULL,
-          style = htmltools::css(grid_template_columns =  "5fr 1fr"),
+          style = htmltools::css(grid_template_columns =  "11fr 1fr"),
           plotlyOutput("line_movement_plot"),
           DTOutput("narrow_dt")
         )
@@ -496,27 +507,59 @@ server <- function(input, output, session) {
   })  
   
   output$profit_loss_plot <- renderPlotly({
-    plot_ly(data = profit_by_date()) |>
+    profit_data <- profit_by_date() |> 
+      dplyr::mutate(color = ifelse(PROFIT > 0, custom_green, custom_red))
+    
+    plot_ly(data = profit_data) |>
       add_lines(x = ~date, y = ~cumsum(PROFIT), name = 'Profit/Loss', 
                 line = list(shape = 'spline', smoothing = 0.5)) |> 
-      add_lines(x = ~date, y = ~cumsum(TOTAL_WAGERED*0.0476*-1), name = 'Juice Tax',
-                line = list(shape = 'spline', smoothing = 0.5)) |> 
+      add_lines(x = ~date, y = ~cumsum(TOTAL_WAGERED * 0.0476 * -1), name = 'Juice Tax',
+                line = list(shape = 'spline', smoothing = 0.5, dash = "dash")) |> 
       add_bars(x = ~date, y = ~PROFIT,
-               color = ~ifelse(PROFIT > 0, 'Daily Profit', 'Daily Loss'),
+               marker = list(color = ~color),  # Use marker color directly
+               opacity = 0.6,
+               name = "Daily P/L",
                hoverinfo = "text",
-               hovertext = ~paste0('<b>Profit:    </b>', round(PROFIT,2),"<br>",
-                                   '<b>N Bets:    </b>', N_BETS,"<br>",
-                                   '<b>N Winners: </b>', N_WINNERS,"<br>",
-                                   '<b>Wagered: </b>', round(TOTAL_WAGERED, 2),"<br>",
+               hovertext = ~paste0('<b>Profit:    </b>', round(PROFIT, 2), "<br>",
+                                   '<b>N Bets:    </b>', N_BETS, "<br>",
+                                   '<b>N Winners: </b>', N_WINNERS, "<br>",
+                                   '<b>Wagered: </b>', round(TOTAL_WAGERED, 2), "<br>",
                                    '<b>Returned:   </b>', round(TOTAL_RETURN, 2))
       ) |>
       layout(
-        title = list(text = 'Cumulative Profit Loss Over Time',
-                     y = 0.97),
+        title = list(text = 'Cumulative Profit Loss Over Time', y = 0.97),
         xaxis = list(title = 'Date'),
-        yaxis = list(title = 'Dollars ($)')
+        yaxis = list(title = 'Dollars ($)'),
+        showlegend = FALSE
       )
   })
+
+  
+  # output$profit_loss_plot <- renderPlotly({
+  #   plot_ly(data = profit_by_date()) |>
+  #     add_lines(x = ~date, y = ~cumsum(PROFIT), name = 'Profit/Loss', 
+  #               line = list(shape = 'spline', smoothing = 0.5)) |> 
+  #     add_lines(x = ~date, y = ~cumsum(TOTAL_WAGERED*0.0476*-1), name = 'Juice Tax',
+  #               line = list(shape = 'spline', smoothing = 0.5, dash = "dash")) |> 
+  #     add_bars(x = ~date, y = ~PROFIT,
+  #              color = ~ifelse(PROFIT > 0, 'Daily Profit', 'Daily Loss'),
+  #              colors = c('Daily Profit' = custom_green,  # Custom green
+  #                         'Daily Loss' = custom_red), 
+  #              hoverinfo = "text",
+  #              hovertext = ~paste0('<b>Profit:    </b>', round(PROFIT,2),"<br>",
+  #                                  '<b>N Bets:    </b>', N_BETS,"<br>",
+  #                                  '<b>N Winners: </b>', N_WINNERS,"<br>",
+  #                                  '<b>Wagered: </b>', round(TOTAL_WAGERED, 2),"<br>",
+  #                                  '<b>Returned:   </b>', round(TOTAL_RETURN, 2))
+  #     ) |>
+  #     layout(
+  #       title = list(text = 'Cumulative Profit Loss Over Time',
+  #                    y = 0.97),
+  #       xaxis = list(title = 'Date'),
+  #       yaxis = list(title = 'Dollars ($)'),
+  #       showlegend = FALSE
+  #     )
+  # })
   
   output$ev_plot <- renderPlotly({
     plot_ev(df = value_df(), line_col = "price", win_prob_col = "win_percent", winner_col = "winner")
@@ -582,7 +625,8 @@ server <- function(input, output, session) {
       layout(barmode = 'overlay',
              xaxis = list(title = 'Win Probability'),
              yaxis = list(title = 'Win Percentage', range = c(0,100)),
-             legend= list(title = list(text = 'Win Percentage')))
+             legend= list(title = list(x = 0, y = 1.1, orientation = 'h', 
+                                       text = 'Win Percentage')))
   })
   
   output$implied_win_percentage_plot <- renderPlotly({
@@ -599,14 +643,19 @@ server <- function(input, output, session) {
       layout(barmode = 'overlay',
              yaxis = list(title = 'Line'),
              xaxis = list(title = 'Win Percentage', range = c(0,100)),
-             legend= list(title = list(text = 'Win Percentage')))
+             legend= list(title = list(x = 0, y = 1.1, orientation = 'h',
+                                       text = 'Win Percentage')))
   })
   
   output$narrow_dt <- renderDT({
-    datatable(data.frame(unique(upcoming_df()$game)),
+    datatable(data.frame(Game = unique(upcoming_df()$game)),
               rownames = FALSE, selection = "single",
               options = list(pageLength = 30,
-                             dom = "t")
+                             dom = "t",
+                             columnDefs = list(
+                               # center the display column
+                               list(className = 'dt-center', targets = "_all")
+                             ))
     )
   })
   
