@@ -21,6 +21,7 @@ library(DT)
 library(lubridate)
 library(tibble)
 library(ggimage)
+library(png)
 
 ## VARIABLES ---------------------------------------------------------------
 
