@@ -590,7 +590,7 @@ server <- function(input, output, session) {
       summarise(
         display = paste0(
           '<div style="display: flex; align-items: center; justify-content: space-between;">',
-          '<div style="text-align: center; width: 50px;">',
+          '<div style="text-align: center; width: 200px;">',
           # Team 1 logo
           '<div style="margin-bottom: 5px;">',
           create_logo_img_tag(first(team), nhl_logos, "default", 40),
@@ -604,7 +604,7 @@ server <- function(input, output, session) {
           '<strong>VS</strong>', '<br>',
           date[1],
           '</div>',
-          '<div style="text-align: center; width: 50px;">',
+          '<div style="text-align: center; width: 200px;">',
           # Team 2 logo
           '<div style="margin-bottom: 5px;">',
           create_logo_img_tag(last(team), nhl_logos, "default", 40),
