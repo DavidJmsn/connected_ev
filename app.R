@@ -223,8 +223,8 @@ plot_ev <- function(df = games_df,
                                                             "<br>Line:", .data[[line_col]],
                                                             "<br>Winner:", .data[[winner_col]]) 
                                else NULL)) +
-      scale_shape_manual(values = c("FALSE" = 4, "TRUE" = 16)) +  # 4 = "x", 16 = circle
-      scale_color_manual(values = c("FALSE" = custom_red, "TRUE" = custom_green)) 
+      scale_shape_manual(name = "Winner", values = c("FALSE" = 4, "TRUE" = 16)) +  # 4 = "x", 16 = circle
+      scale_color_manual(name = "Winner", values = c("FALSE" = custom_red, "TRUE" = custom_green)) 
   }
   
   # Complete the plot styling
@@ -238,14 +238,18 @@ plot_ev <- function(df = games_df,
     scale_y_continuous(breaks = seq(floor(min(df[[line_col]])), 
                                     ceiling(max(df[[line_col]])), 
                                     by = 0.5)) +
-    theme(plot.title = element_text(hjust = 0.5))
+    theme(
+      plot.title = element_text(hjust = 0.5)
+      # legend.position.inside = c(0.9, 0.9)
+    )
   
   # Add legend only if not using logos
   if (!use_logos || interactive) {
     # p <- p + scale_color_discrete(name = winner_col)
     p <- ggplotly(p, tooltip = if(!use_logos) "text" else "all") |>
       layout(
-        legend = list(x = 0, y = 1.1, orientation = 'h')
+        # legend = list(x = 0.8, y = 0.8, orientation = 'h')
+        legend = list(x = 0.9, y = 0.95, bgcolor = 'rgba(0,0,0,0)')  # transparent background)
       )
   } else {
     p <- p + theme(legend.position = "none")
@@ -405,6 +409,7 @@ nhl_logos <- readRDS("nhl_logos_preloaded.rds")
 ui <- page_navbar(
   title = "Willy Snipe?",
   theme = bs_theme(preset = "flatly", version = 5),
+  # theme = bs_theme(preset = "darkly", version = 5),
   nav_panel(
     title = "Expected Value",
     icon = bs_icon("graph-up-arrow"),
@@ -625,8 +630,11 @@ server <- function(input, output, session) {
       layout(barmode = 'overlay',
              xaxis = list(title = 'Win Probability'),
              yaxis = list(title = 'Win Percentage', range = c(0,100)),
-             legend= list(title = list(x = 0, y = 1.1, orientation = 'h', 
-                                       text = 'Win Percentage')))
+             legend= list(
+               title = list(text = 'Win Percentage'),
+               x = 0.1, y = 0.95, bgcolor = 'rgba(0,0,0,0)',
+               orientation = 'h'
+             ))
   })
   
   output$implied_win_percentage_plot <- renderPlotly({
@@ -643,8 +651,12 @@ server <- function(input, output, session) {
       layout(barmode = 'overlay',
              yaxis = list(title = 'Line'),
              xaxis = list(title = 'Win Percentage', range = c(0,100)),
-             legend= list(title = list(x = 0, y = 1.1, orientation = 'h',
-                                       text = 'Win Percentage')))
+             legend= list(
+               title = list(text = 'Win Percentage'),
+               x = 0.8, y = 0.95, bgcolor = 'rgba(0,0,0,0)'
+               )
+      )
+    # legend = list(x = 0.9, y = 0.95, bgcolor = 'rgba(0,0,0,0)') 
   })
   
   output$narrow_dt <- renderDT({
