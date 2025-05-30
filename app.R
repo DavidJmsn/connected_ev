@@ -632,18 +632,17 @@ server <- function(input, output, session) {
              yaxis = list(title = 'Win Percentage', range = c(0,100)),
              legend= list(
                title = list(text = 'Win Percentage'),
-               x = 0.1, y = 0.95, bgcolor = 'rgba(0,0,0,0)',
-               orientation = 'h'
+               x = 0.1, y = 0.95, bgcolor = 'rgba(0,0,0,0)'
              ))
   })
   
   output$implied_win_percentage_plot <- renderPlotly({
     plot_ly(data = line_vs_observed(), y = ~as.factor(round(AVERAGE_LINE,2))) |>
-      add_trace(x = ~EXP_WIN_PROB*100, name = 'Expected Win Percentage',
+      add_trace(x = ~EXP_WIN_PROB*100, name = 'Expected',
                 type = 'bar', orientation = 'h',
                 hovertext = ~paste0('<b>Exp. Win %: </b>', round(EXP_WIN_PROB*100, 1)), textposition = 'outside',
                 opacity = 0.75) |>
-      add_trace(x = ~OBSERVED_WIN_PERCENTAGE*100, name = 'Observed Win Percentage',
+      add_trace(x = ~OBSERVED_WIN_PERCENTAGE*100, name = 'Observed',
                 type = 'bar', orientation = 'h',
                 hovertext = ~paste0('<b>Obs. Win %: </b>', round(OBSERVED_WIN_PERCENTAGE*100, 1)),
                 textposition = 'outside',
@@ -653,7 +652,7 @@ server <- function(input, output, session) {
              xaxis = list(title = 'Win Percentage', range = c(0,100)),
              legend= list(
                title = list(text = 'Win Percentage'),
-               x = 0.8, y = 0.95, bgcolor = 'rgba(0,0,0,0)'
+               x = 0.6, y = 0.95, bgcolor = 'rgba(0,0,0,0)'
                )
       )
     # legend = list(x = 0.9, y = 0.95, bgcolor = 'rgba(0,0,0,0)') 
