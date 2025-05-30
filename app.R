@@ -223,8 +223,8 @@ plot_ev <- function(df = games_df,
                                                             "<br>Line:", .data[[line_col]],
                                                             "<br>Winner:", .data[[winner_col]]) 
                                else NULL)) +
-      scale_shape_manual(name = "Winner", values = c("FALSE" = 4, "TRUE" = 16)) +  # 4 = "x", 16 = circle
-      scale_color_manual(name = "Winner", values = c("FALSE" = custom_red, "TRUE" = custom_green)) 
+      scale_shape_manual(name = "Winner", values = c("TRUE" = 16, "FALSE" = 4)) +  # 4 = "x", 16 = circle
+      scale_color_manual(name = "Winner", values = c("TRUE" = custom_green, "FALSE" = custom_red)) 
   }
   
   # Complete the plot styling
@@ -249,7 +249,7 @@ plot_ev <- function(df = games_df,
     p <- ggplotly(p, tooltip = if(!use_logos) "text" else "all") |>
       layout(
         # legend = list(x = 0.8, y = 0.8, orientation = 'h')
-        legend = list(x = 0.2, y = 0.2, bgcolor = 'rgba(0,0,0,0)', orientation = 'h')  # transparent background)
+        legend = list(x = 0.65, y = 0.9, bgcolor = 'rgba(0,0,0,0)')  # transparent background)
       )
   } else {
     p <- p + theme(legend.position = "none")
