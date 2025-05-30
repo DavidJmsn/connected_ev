@@ -408,10 +408,11 @@ nhl_logos <- readRDS("nhl_logos_preloaded.rds")
 
 ui <- page_navbar(
   title = "Willy Snipe?",
-  theme = bs_theme(preset = "flatly", version = 5),
+  # theme = bs_theme(preset = "flatly", version = 5),
+  theme = bs_theme(preset = "lux", version = 5),
   # theme = bs_theme(preset = "darkly", version = 5),
   nav_panel(
-    title = "Expected Value",
+    title = "Betting Record",
     icon = bs_icon("graph-up-arrow"),
     navset_card_pill(
       title = "Plots",
@@ -423,7 +424,15 @@ ui <- page_navbar(
       nav_panel(
         "E.V. Scatterplot",
         plotlyOutput("ev_plot")
-      ),
+      )
+    )
+  ),
+  nav_panel(
+    title = "Model Performance",
+    icon = bs_icon("speedometer"),
+    navset_card_pill(
+      title = "Plots",
+      full_screen = TRUE,
       nav_panel(
         "Win Percentage",
         plotlyOutput("win_percentage_plot")
@@ -436,6 +445,7 @@ ui <- page_navbar(
   ),
   nav_panel(
     title = "Upcoming Games",
+    icon = bs_icon("calendar-event"), 
     navset_card_pill(
       full_screen = TRUE,
       nav_panel(
@@ -538,33 +548,6 @@ server <- function(input, output, session) {
         showlegend = FALSE
       )
   })
-
-  
-  # output$profit_loss_plot <- renderPlotly({
-  #   plot_ly(data = profit_by_date()) |>
-  #     add_lines(x = ~date, y = ~cumsum(PROFIT), name = 'Profit/Loss', 
-  #               line = list(shape = 'spline', smoothing = 0.5)) |> 
-  #     add_lines(x = ~date, y = ~cumsum(TOTAL_WAGERED*0.0476*-1), name = 'Juice Tax',
-  #               line = list(shape = 'spline', smoothing = 0.5, dash = "dash")) |> 
-  #     add_bars(x = ~date, y = ~PROFIT,
-  #              color = ~ifelse(PROFIT > 0, 'Daily Profit', 'Daily Loss'),
-  #              colors = c('Daily Profit' = custom_green,  # Custom green
-  #                         'Daily Loss' = custom_red), 
-  #              hoverinfo = "text",
-  #              hovertext = ~paste0('<b>Profit:    </b>', round(PROFIT,2),"<br>",
-  #                                  '<b>N Bets:    </b>', N_BETS,"<br>",
-  #                                  '<b>N Winners: </b>', N_WINNERS,"<br>",
-  #                                  '<b>Wagered: </b>', round(TOTAL_WAGERED, 2),"<br>",
-  #                                  '<b>Returned:   </b>', round(TOTAL_RETURN, 2))
-  #     ) |>
-  #     layout(
-  #       title = list(text = 'Cumulative Profit Loss Over Time',
-  #                    y = 0.97),
-  #       xaxis = list(title = 'Date'),
-  #       yaxis = list(title = 'Dollars ($)'),
-  #       showlegend = FALSE
-  #     )
-  # })
   
   output$ev_plot <- renderPlotly({
     plot_ev(df = value_df(), line_col = "price", win_prob_col = "win_percent", winner_col = "winner")
@@ -671,14 +654,6 @@ server <- function(input, output, session) {
   })
   
   output$upcoming_games_table <- renderDT({
-    # datatable(upcoming_df()[, c("game", "team", "price", "kelly_criterion", "goalie", "date","game_time"
-    #                           # "win_probability","expected_value",  "date",
-    #                           # "game_time", "book", "game"
-    # )],
-    # rownames = FALSE, selection = "single",
-    # options = list(pageLength = 30,
-    #                dom = "t")
-    # )
     games_data <- upcoming_df() %>%
       slice_max(current_time_odds, n = 1, by = team) %>%
       arrange(date, game_time, home_or_away)
@@ -728,65 +703,6 @@ server <- function(input, output, session) {
       colnames = c("Date" = "date", "Matchup" = "display")
     )
   })
-    
-  #   games_data <- upcoming_df() %>%
-  #     slice_max(current_time_odds, n = 1, by = team) %>%
-  #     arrange(game_time, home_or_away)
-  # 
-  #   # Create a more compact display with logos
-  #   games_compact <- games_data %>%
-  #     group_by(game, date, game_time) %>%
-  #     summarise(
-  #       display = paste0(
-  #         '<div style="display: flex; align-items: center; justify-content: center;">',
-  #         '<div style="text-align: center; width: 150px;">',
-  #         # Team 1 logo
-  #         '<div style="margin-bottom: 5px;">',
-  #         create_logo_img_tag(first(team), nhl_logos, "default", 40),
-  #         '</div>',
-  #         '<strong>', first(team), '</strong><br>',
-  #         'Line: ', round(first(price), 2), '<br>',
-  #         'KC: ', round(first(kelly_criterion) * 100, 2), '%<br>',
-  #         'Goalie: ', first(goalie),
-  #         '</div>',
-  #         '<div style="text-align: center; width: 20px;">',
-  #         '<strong>VS</strong>', '<br>',
-  #         # date[1],
-  #         '</div>',
-  #         '<div style="text-align: center; width: 150px;">',
-  #         # Team 2 logo
-  #         '<div style="margin-bottom: 5px;">',
-  #         create_logo_img_tag(last(team), nhl_logos, "default", 40),
-  #         '</div>',
-  #         '<strong>', last(team), '</strong><br>',
-  #         'Line: ', round(last(price), 2), '<br>',
-  #         'KC: ', round(last(kelly_criterion) * 100, 2), '%<br>',
-  #         'Goalie: ', last(goalie),
-  #         '</div>',
-  #         '</div>'
-  #       ),
-  #       .groups = "drop"
-  #     )
-  # 
-  #   datatable(
-  #     games_compact[, c("game", "display")],
-  #     rownames = FALSE,
-  #     selection = "single",
-  #     escape = FALSE,  # Allow HTML rendering
-  #     options = list(
-  #       pageLength = 30,
-  #       dom = "t",
-  #       columnDefs = list(
-  #         list(visible = FALSE, targets = 0),  # Hide the game column
-  #         list(className = 'dt-center', targets = c("_all"))  # Center date and time
-  #       )
-  #     ),
-  #     colnames = c(
-  #       "Game" = "game",
-  #       "Matchup" = "display"
-  #     )
-  #   )
-  # })
   
   selected_game <- reactive({
     print(data.frame(unique(upcoming_df()$game))[input$narrow_dt_row_last_clicked,])
